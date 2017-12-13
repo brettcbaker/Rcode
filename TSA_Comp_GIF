@@ -1,16 +1,20 @@
-setwd("C:/Users/bbaker016/Desktop/Demo_Images/")
+setwd("C:/Users/bbaker016/Documents/example rotation")
 library(magick)
-img0 <- image_scale(image_read("5f36e497d726347dd32ab991e0e00426_Slice_0.png"), "233x300")
-img4 <- image_scale(image_read("5f36e497d726347dd32ab991e0e00426_Slice_4.png"), "233x300")
-img8 <- image_scale(image_read("5f36e497d726347dd32ab991e0e00426_Slice_8.png"), "233x300")
-img12 <- image_scale(image_read("5f36e497d726347dd32ab991e0e00426_Slice_12.png"), "233x300")
-imgbox <- image_scale(image_read("5f36e497d726347dd32ab991e0e00426_Slice_0 - box.png"), "233x300")
 
-img0 <- image_resize(img0,"x500")
-img4 <- image_resize(img4,"x500")
-img8 <- image_resize(img8,"x500")
-img12 <- image_resize(img12,"x500")
-imgbox <- image_resize(imgbox,"x500")
+for (i in 0:15){
+  assign(paste0("img",i), image_scale(image_read(paste0("06f07ef12a24cd5ab6aa457ac8afa2a0_Slice_",i,".png")), "233x300"))
+  
+  assign(paste0("img",i), image_resize(get(paste0("img",i)), "x500"))
+}
+frames <- image_morph(c(img0, img0, img1, img1, img2, img2, img3, img3, img4, img4, img5, img5, img6, img6, img7, img7, 
+                        img8, img8, img9, img9, img10, img10, img11, img11, img12, img12, img13, img13, img14, img14, 
+                        img15, img15, img0 ), frames = 2)
+
+animation <- image_animate(image_join(frames))
+print(animation)
+image_write(animation, "TSA_Demo.gif")
+
+#############
 
 imgblur <- image_blur(imgbox,10,5)
 
