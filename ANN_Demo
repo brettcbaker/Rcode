@@ -1,0 +1,88 @@
+#Load Libraries
+library(mxnet)
+library(data.table)
+library(caret)
+
+#Read data
+dat <- fread("train.csv")
+
+#Split data into a train and test set
+set.seed(12345)
+train_ind <- createDataPartition(dat$label, p = .80,
+                                 list = FALSE,
+                                 times = 1)
+train <- dat[ train_ind,]
+test <- dat[-train_ind,]
+
+#Format data into a matrix
+train <- data.matrix(train)
+test <- data.matrix(test)
+
+#Brea train and test data into Indepedent and Dependent Variable Matrices
+train.x <- train[,-1]
+train.y <- train[,1]
+test.x <- test[, -1]
+test.y <- test[, 1]
+
+#Check color value range
+min(train.x)
+max(train.x)
+#Standardize data: Linear transformation to [0.1,.99]
+##Color Values range from [0,255]
+###Transpose matrix to set columns instead of rows as a complete attribute
+train.x <- t(train.x/255*.99)+.01
+test.x <- t(test.x/255*.99)+.01
+
+#Plot examples of the handwritten numbers
+sample <- sample(1:nrow(train),50)
+var <- t(train[sample,-1])
+var_matrix <- lapply(1:50,function(x) matrix(var[,x],ncol=28))
+opar <- par(no.readonly = T)
+par(mfrow=c(5,10),mar=c(.1,.1,.1,.1))
+
+for(i in 1:50) {
+  for(j in 1:28) {
+    var_matrix[[i]][j,] <- rev(var_matrix[[i]][j,])
+  }
+  image(var_matrix[[i]],col=grey.colors(225),axes=F)
+}
+
+#Format the model
+data <- mx.symbol.Variable("data")
+fc1 <- mx.symbol.FullyConnected(data, name="fc1", num_hidden=  128)
+act1 <- mx.symbol.Activation(fc1, name="sig1", act_type="sigmoid")
+fc2 <- mx.symbol.FullyConnected(act1, name="fc2", num_hidden= 64)
+act2 <- mx.symbol.Activation(fc2, name="sig2", act_type="sigmoid")
+fc3 <- mx.symbol.FullyConnected(act2, name="fc3", num_hidden=  10)
+softmax <- mx.symbol.SoftmaxOutput(fc3, name="sm")
+################ The choice of nodes is not scientific. By choosing less than 784 nodes in the hidden layers, the network is forces to sumamrize key features. 
+################ We do not want to choose too few features because then the network will be limited in sumamrizing key features. There is no perfect method, trial and error.
+
+#Visualize the model steps
+graph.viz(softmax)
+
+#Define Parellel Processing
+devices <- mx.cpu()
+
+#Set seed so results can be reporduced
+mx.set.seed(12345)
+
+#Run the ANN MLP Model 
+model <- mx.model.FeedForward.create(softmax, X=train.x, y=train.y,
+                                     ctx=devices, num.round=10, array.batch.size=98,
+                                     learning.rate=0.2, momentum=0.9, eval.metric=mx.metric.accuracy)
+
+################ num.round: The number of iterations to run the network and adjust the error with backpropogation
+################ array.batch.size:  defines number of samples that going to be propagated through the network (breaks each num.round into multiple iterations)
+################ learning.rate: The speed at which the ANN arrives at local minimum solutions
+################ momentum: A value between 0 and 1 that increases the size of the steps taken towards the minimum preventing getting stuck in a local minimum
+
+##Prediction
+predicted <- predict(model, test.x)
+predicted_labels <- max.col(t(predicted)) - 1
+# Get accuracy
+results <- table(test[, 1], predicted_labels)
+confusionMatrix(results)
+
+################ Refining the model: It is always helpful to plot the prediction accuracy based on changes in parameters. With this computing requirements of ANN
+################ this could take a while.
