@@ -1,0 +1,178 @@
+---
+title: "Diabetes Prediction"
+author: "Brett Baker"
+date: "May 7, 2017"
+output: html_document
+---
+
+<p>
+I'm using this Kernel to try out code for a decsion tree (pruned and unpruned), random forest, and AdaBoost to predict the onset of diabetes in Prima Indians.
+
+A best AUC achieved was 0.8312264 using Adaptive Boosting with a complexity of 0.030 and iterations set to 47.
+
+Comments Welcome!!
+<p>
+
+###Loading libraries and data
+```{r, message=FALSE, warning=FALSE}
+library(rpart)
+library(tree)
+library(randomForest)
+library(ada)
+library(caret)
+library(ROCR)
+library(dplyr)
+
+# dat <- read.csv("../input/diabetes.csv")
+dat <- read.csv("diabetes.csv")
+
+
+```
+
+###Ensureing Outcome is categoric and splitting data into a training and testing set
+```{r}
+set.seed(416)
+dat$Outcome <- as.factor(dat$Outcome)
+
+train_ind <- createDataPartition(dat$Outcome, p = .80,
+                                 list = FALSE,
+                                 times = 1)
+train <- dat[ train_ind,]
+test <- dat[-train_ind,]
+```
+
+###Constructing a decision tree
+```{r}
+set.seed(416)
+tree <- tree(Outcome~ ., data = train)
+tree
+plot(tree)
+text(tree ,pretty =0, cex =.7)
+
+tree.probs <- predict(tree, test, type="class")
+pr <- prediction(as.numeric(tree.probs), as.numeric(test$Outcome))
+
+auc <- performance(pr, measure = "auc")
+auc <- auc@y.values[[1]]
+auc
+```
+###Determining the optimal pruned tree size based on e lowest the lowest cross-validated classification error rate
+```{r}
+cv.tree(tree, FUN = prune.misclass)
+```
+###Prune tree to 6 splits
+```{r}
+pruned.tree <- prune.misclass(tree, best  = 6)
+plot(pruned.tree)
+text(pruned.tree ,pretty =0, cex =.7)
+tree.probs <- predict(pruned.tree, test, type="class")
+pr <- prediction(as.numeric(tree.probs), as.numeric(test$Outcome))
+
+auc <- performance(pr, measure = "auc")
+auc <- auc@y.values[[1]]
+auc
+```
+<p>
+The full decsison tree stil outperforms the pruned tree based on AUC, but we have decreased the complexity of the tree.
+<p>
+
+#Random Forest
+```{r}
+set.seed(416)
+forest <- randomForest(Outcome~., data=train, ntree = 500, mtry = 5, importance = TRUE)
+forest.probs <- predict(forest, test, type="class")
+pr <- prediction(as.numeric(forest.probs), as.numeric(test$Outcome))
+
+
+auc <- performance(pr, measure = "auc")
+auc <- auc@y.values[[1]]
+auc
+```
+
+###Optimizate number of trees based on minimizing complexity and error
+```{r}
+plot(forest, main="")
+```
+
+<p>
+The optimal amount of trees while minimizing error and complexity lies within 25 to 75 trees. On a larger dataset a loop of this sort would become too computationally expensive, but since the dataset is relatively small, I will use a loop to find the optimal number of trees and variables.
+<p>
+
+```{r}
+set.seed(416)
+forestAUC <- c()
+
+for (k in 25:75){
+for (i in 2:8){
+  set.seed(416)
+  forest <- randomForest(Outcome~., data=train, ntree = k, mtry = i, importance = TRUE)
+  forest.probs <- predict(forest, test, type="class")
+  pr <- prediction(as.numeric(forest.probs), as.numeric(test$Outcome))
+  
+  auc <- performance(pr, measure = "auc")
+  auc<- auc@y.values[[1]]
+  loopAUC <- c(k, i, auc)
+  forestAUC <<- rbind(forestAUC,loopAUC)
+}
+  
+}
+forestAUC <- as.data.frame(forestAUC)
+names(forestAUC) <- c("Trees","Mtry","AUC")
+head(forestAUC %>% arrange(desc(AUC)),10)
+
+forest <- randomForest(Outcome~., data=train, ntree = 30, mtry = 2, importance = TRUE)
+
+importance(forest)
+
+```
+<p>
+With 28 trees and 4 variables selected at each split, an AUC of 0.8262264 was achieved.
+
+The top 3 predictors were pregancies, glucose, and blood pressure.
+<p>
+
+#AdaBoost
+
+```{r}
+set.seed(416)
+ada <- ada(Outcome ~ ., data= train, control=rpart::rpart.control(maxdepth=30, cp=0.00300, minsplit=20, xval=10, iter=60))
+ada.probs <- predict(ada, test)
+pr <- prediction(as.numeric(ada.probs), as.numeric(test$Outcome))
+
+auc <- performance(pr, measure = "auc")
+auc <- auc@y.values[[1]]
+auc
+```
+
+###Optimizate number of trees based on minimizing complexity and error
+```{r}
+plot(ada, main="")
+```
+
+<p>
+It appears there is a dip in error at around 47 before it starts to become more stagnant. Iterations will be set to 47, and a loop will be run to determine the optimal complexity of the model. This is also something that can only be done on small datasets since it is computationally expensive.
+<p>
+
+```{r}
+adaAUC <- c()
+s <- seq(0.001, .05, by = 0.001)
+for(i in s) {
+  set.seed(416)
+  ada <- ada(Outcome ~ ., data= train, control=rpart::rpart.control(maxdepth=30, cp= i, minsplit=20, xval=10, iter= 47))
+  ada.probs <- predict(ada, test)
+  pr <- prediction(as.numeric(ada.probs), as.numeric(test$Outcome))
+  
+  auc <- performance(pr, measure = "auc")
+  auc <- auc@y.values[[1]]
+  loopAUC <- c(i, auc)
+  adaAUC <<- rbind(adaAUC,loopAUC)
+}
+adaAUC <- as.data.frame(adaAUC)
+names(adaAUC) <- c("Complexity", "AUC")
+head(adaAUC %>% arrange(desc(AUC)),10)
+
+```
+
+<p> 
+Adaptive Boosting gives the best results with an AUC of 0.8312264 for this particular seed.
+<p>
