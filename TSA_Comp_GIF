@@ -1,0 +1,25 @@
+setwd("C:/Users/bbaker016/Desktop/Demo_Images/")
+library(magick)
+img0 <- image_scale(image_read("5f36e497d726347dd32ab991e0e00426_Slice_0.png"), "233x300")
+img4 <- image_scale(image_read("5f36e497d726347dd32ab991e0e00426_Slice_4.png"), "233x300")
+img8 <- image_scale(image_read("5f36e497d726347dd32ab991e0e00426_Slice_8.png"), "233x300")
+img12 <- image_scale(image_read("5f36e497d726347dd32ab991e0e00426_Slice_12.png"), "233x300")
+imgbox <- image_scale(image_read("5f36e497d726347dd32ab991e0e00426_Slice_0 - box.png"), "233x300")
+
+img0 <- image_resize(img0,"x500")
+img4 <- image_resize(img4,"x500")
+img8 <- image_resize(img8,"x500")
+img12 <- image_resize(img12,"x500")
+imgbox <- image_resize(imgbox,"x500")
+
+imgblur <- image_blur(imgbox,10,5)
+
+imgblur <- image_annotate(imgblur, "THREAT DETECTED", size = 25, color = "black", boxcolor = "red",
+                          degrees = 0, location = "+75+25")
+imgblur <- image_annotate(imgblur, "THREAT DETECTED", size = 25, color = "black", boxcolor = "red",
+                          degrees = 0, location = "+75+400")
+
+frames <- image_morph(c(img0, img0, img4, img4, img8, img8, img12, img12, img0, img0, imgbox, imgbox,imgblur, imgbox,imgblur,imgbox,imgblur), frames = 10)
+animation <- image_animate(image_join(frames))
+print(animation)
+image_write(animation, "TSA_Demo.gif")
