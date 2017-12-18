@@ -1,0 +1,39 @@
+library(data.table)
+library(stringr)
+library(caret)
+library(ROCR)
+library(dplyr)
+
+dat <- fread(file.choose())
+dat <- data.frame(dat)
+
+dat$brand_name = as.character(dat$brand_name)
+dat$brand_name[dat$brand_name == ""] = "Unknown"
+
+splitVar = str_split(dat$category_name, "/")
+cat2 = sapply(splitVar,'[',2)
+cat3 = sapply(splitVar,'[',3)
+dat['cat2'] = cat2
+dat['cat3'] = cat3
+dat$cat2[is.na(dat$cat2)] = "Unknown"
+dat$cat2[dat$cat2 == ""] = "Unknown"
+dat$cat3[is.na(dat$cat3)] = "Unknown"
+dat$cat3[dat$cat3 == ""] = "Unknown"
+dat['cat1'] = dat$category_name
+dat['cat1'][is.na(dat$cat1)] = "Unknown"
+dat$cat1[dat$cat1 == ""] = "Unknown"
+dat$category_name = NULL
+dat$cat1 <- gsub("/\\S*", "", dat$cat1)
+
+#############
+dat <- sample_n(dat, 10000)
+set.seed(416)
+dat$name <- as.factor(dat$name)
+dat$brand_name <- as.factor(dat$brand_name)
+dat$cat1 <- as.factor(dat$cat1)
+dat$cat2 <- as.factor(dat$cat2)
+dat$cat3 <- as.factor(dat$cat3)
+
+indexes <- sample(1:nrow(dat), size=0.2*nrow(dat))
+test <- dat[indexes,]
+train = dat[-indexes,]
